@@ -1,6 +1,6 @@
 {
   "name": "imagegen",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Generate or edit images from Claude Code by delegating to Codex CLI's built-in image_gen tool. Requires Codex CLI installed and logged in.",
   "author": {
     "name": "Dimas Prasetyo"
