@@ -66,6 +66,50 @@ ${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out logo-ideas.png --n 3 \
   "Minimal logo mark of a paper plane, two flat colors, white background, no text"
 ```
 
+### Game assets
+
+```bash
+# Character sprite
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/sprites/knight.png --transparent \
+  "2D side-view game character: a small knight with a blue cape, idle pose, full body, centered, cartoon style, clean outline, no shadow"
+
+# Matching enemy, using the character as a style reference
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/sprites/slime.png --transparent \
+  --input assets/sprites/knight.png \
+  "A green slime enemy in the same art style, outline weight, palette and scale as the attached character, full body, centered"
+
+# Collectible / item icons
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/items/potion.png --transparent \
+  "Inventory icon of a red health potion bottle, 3/4 view, bold outline, centered, fills most of the frame"
+
+# Pixel art
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/sprites/chest.png --transparent \
+  "Pixel art treasure chest, 32x32 style with large visible pixels, limited 16-color palette, no anti-aliasing, centered"
+
+# Animation frames as a sprite sheet
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/sprites/knight-walk.png --transparent \
+  --input assets/sprites/knight.png \
+  "Sprite sheet of the attached character walking: 4 frames in one horizontal row, equal spacing, same size and facing right in every frame"
+
+# Tileable terrain tile
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/tiles/grass.png \
+  "Seamless tileable top-down grass tile for a 2D game, stylized, even lighting, square, edges match on all sides"
+
+# Level background (parallax layer)
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/backgrounds/forest-far.png \
+  "Wide 16:9 side-scroller background layer: distant forest silhouettes and hills, muted colors, low detail, no characters, horizontally tileable"
+
+# UI elements
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/ui/button.png --transparent \
+  "Game UI button, wide rounded rectangle, wooden frame with a gold border, empty center for text, no text, front view"
+```
+
+Tips for game assets:
+- Make the first key asset (main character or one item), then pass it with `--input` for every later asset so the style, palette and scale stay consistent.
+- Use `--transparent` for sprites, items and UI. Leave it off for backgrounds and tiles.
+- Ask for no text in UI art; the game renders its own labels.
+- Generated sprite sheets and pixel art are approximate: frame spacing and pixel grids may not be exact. Check them with Read, and tell the user when they need slicing, resizing (nearest-neighbor for pixel art) or cleanup in an editor.
+
 ## Troubleshooting
 
 - `codex CLI not found`: install Codex CLI and log in.
