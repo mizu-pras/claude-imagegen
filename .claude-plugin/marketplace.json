@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "codex-imagegen",
+  "description": "Image generation for Claude Code via Codex CLI",
+  "owner": {
+    "name": "Dimas Prasetyo"
+  },
+  "plugins": [
+    {
+      "name": "imagegen",
+      "description": "Generate or edit images from Claude Code by delegating to Codex CLI's built-in image_gen tool.",
+      "source": "./plugins/imagegen",
+      "category": "productivity"
+    }
+  ]
+}
