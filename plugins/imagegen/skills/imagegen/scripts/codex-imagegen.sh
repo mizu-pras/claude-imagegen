@@ -2,12 +2,21 @@
 # Generate or edit raster images by delegating to Codex CLI's built-in image_gen tool.
 #
 # Usage:
-#   codex-imagegen.sh --out <path.png> [--input <img>]... [--n <count>] [--transparent] [--] "<prompt>"
+#   codex-imagegen.sh --out <path.png> [--input <img>]... [--n <count>] [--transparent]
+#                     [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <path.png>] [--] "<prompt>"
 #
 # --out          Destination file. With --n > 1, files are saved as <name>-1.png, <name>-2.png, ...
 # --input        Image to attach (edit target or style/composition reference). Repeatable.
 # --n            Number of variants (default 1).
 # --transparent  Ask for a transparent background (alpha preserved).
+#
+# Region-locked edits (the first --input is the original):
+# --region       Editable rectangle in original pixels, or fractions 0-1 of width/height. Repeatable.
+# --mask         Grayscale PNG, white = editable, black = locked.
+# --feather      Soft blend width inside the region edge (default: 1% of the shorter side).
+# --diff         Also write a difference heatmap (result vs original) to this path.
+# Everything outside the region is copied back from the original, so it stays pixel-identical.
+# Needs Pillow (python3 -m pip install pillow) or uv on PATH.
 #
 # Prints the saved file path(s), one per line, on stdout. Codex logs go to stderr.
 
@@ -17,6 +26,10 @@ out=""
 n=1
 transparent=0
 inputs=()
+regions=()
+mask=""
+feather=""
+diff=""
 prompt=""
 
 while [[ $# -gt 0 ]]; do
@@ -25,6 +38,10 @@ while [[ $# -gt 0 ]]; do
     --input) inputs+=("$2"); shift 2 ;;
     --n) n="$2"; shift 2 ;;
     --transparent) transparent=1; shift ;;
+    --region) regions+=("$2"); shift 2 ;;
+    --mask) mask="$2"; shift 2 ;;
+    --feather) feather="$2"; shift 2 ;;
+    --diff) diff="$2"; shift 2 ;;
     --) shift; prompt="$*"; break ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) prompt="$*"; break ;;
@@ -32,8 +49,30 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$prompt" || -z "$out" ]]; then
-  echo "Usage: $0 --out <path.png> [--input <img>]... [--n <count>] [--transparent] \"<prompt>\"" >&2
+  echo "Usage: $0 --out <path.png> [--input <img>]... [--n <count>] [--transparent] [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <png>] \"<prompt>\"" >&2
   exit 2
+fi
+
+lock=0
+if [[ ${#regions[@]} -gt 0 || -n "$mask" ]]; then
+  lock=1
+  if [[ ${#inputs[@]} -eq 0 ]]; then
+    echo "--region/--mask need --input <original image> (the first --input is the original)." >&2
+    exit 2
+  fi
+  if [[ -n "$mask" && ! -f "$mask" ]]; then
+    echo "Mask not found: $mask" >&2
+    exit 1
+  fi
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if python3 -c 'import PIL' >/dev/null 2>&1; then
+    py=(python3)
+  elif command -v uv >/dev/null 2>&1; then
+    py=(uv run --quiet --no-project --with pillow python)
+  else
+    echo "Region-locked edits need Pillow (python3 -m pip install pillow) or uv on PATH." >&2
+    exit 1
+  fi
 fi
 
 if ! command -v codex >/dev/null 2>&1; then
@@ -67,6 +106,9 @@ else
 fi
 if [[ "$transparent" -eq 1 ]]; then
   instructions+=" The image must have a genuinely transparent background; preserve the alpha channel."
+fi
+if [[ "$lock" -eq 1 ]]; then
+  instructions+=" Keep the first attached image's framing, size, subject position and scale exactly the same; change only what the request asks for."
 fi
 instructions+=" When finished, reply with just DONE.
 
@@ -104,14 +146,34 @@ base="${out%.*}"
 ext="${out##*.}"
 [[ "$ext" == "$out" ]] && ext="png"
 
+# Copy one generated image to its destination; for region-locked edits,
+# composite it onto the original instead and print the verification report on stderr.
+save() {
+  local src="$1" dest="$2" diff_out="$3"
+  if [[ "$lock" -eq 0 ]]; then
+    cp "$src" "$dest"
+    return
+  fi
+  local args=(composite --original "${inputs[0]}" --edited "$src" --out "$dest")
+  local r
+  for r in "${regions[@]+"${regions[@]}"}"; do args+=(--region "$r"); done
+  [[ -n "$mask" ]] && args+=(--mask "$mask")
+  [[ -n "$feather" ]] && args+=(--feather "$feather")
+  [[ -n "$diff_out" ]] && args+=(--diff "$diff_out")
+  echo "raw generated image: $src" >&2
+  "${py[@]}" "$script_dir/edit_tools.py" "${args[@]}" >&2
+}
+
 if [[ ${#results[@]} -eq 1 ]]; then
-  cp "${results[0]}" "$out"
+  save "${results[0]}" "$out" "$diff"
   echo "$out"
 else
   i=1
   for f in "${results[@]}"; do
     dest="$base-$i.$ext"
-    cp "$f" "$dest"
+    diff_out=""
+    [[ -n "$diff" ]] && diff_out="${diff%.*}-$i.png"
+    save "$f" "$dest" "$diff_out"
     echo "$dest"
     i=$((i + 1))
   done

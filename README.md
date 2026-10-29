@@ -35,6 +35,14 @@ The skill runs `skills/imagegen/scripts/codex-imagegen.sh`:
 codex-imagegen.sh --out <path.png> [--input <img>]... [--n <count>] [--transparent] "<prompt>"
 ```
 
+### Edit only part of an image
+
+Codex re-renders the whole image on every edit, so areas you didn't ask to change drift. Pass `--region x,y,w,h` (or `--mask <png>`) with `--input <original>` and the script copies everything outside that area back from the original, so it stays pixel-identical, then prints a report of what changed. `--diff <png>` saves a difference heatmap. This needs Pillow (`python3 -m pip install pillow`) or [uv](https://docs.astral.sh/uv/).
+
+```bash
+codex-imagegen.sh --out hat.png --input original.png --region 280,10,380,220 "Add a red pirate hat"
+```
+
 ## Update
 
 ```bash
