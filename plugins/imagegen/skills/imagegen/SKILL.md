@@ -34,22 +34,36 @@ The script prints the saved path(s) on stdout. Each image takes roughly 30–60 
 
 ## Examples
 
-```bash
-# New image
-${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/hero.png \
-  "Wide 16:9 hero illustration of a cozy coffee shop at dusk, warm lighting, flat vector style"
+Paths and subjects below are placeholders; adapt them to the user's project.
 
-# Game sprite with transparent background
-${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/coin.png --transparent \
-  "Single gold coin game sprite, 3/4 view, soft shading, centered, no shadow"
+```bash
+# Illustration for a website or document
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out images/banner.png \
+  "Wide 16:9 illustration of a mountain landscape at sunrise, soft gradients, flat vector style, no text"
+
+# Photorealistic image
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out images/product.png \
+  "Studio product photo of a ceramic mug on a light gray background, soft diffused light, square 1:1"
+
+# Asset with transparent background (sprite, icon, sticker)
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/star.png --transparent \
+  "Single yellow star icon, slight 3D shading, centered, no shadow"
+
+# Seamless texture
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/wood.png \
+  "Seamless tileable oak wood texture, top-down, even lighting, square"
 
 # Edit an existing image
-${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/hero-night.png --input assets/hero.png \
-  "Change the scene to night with neon signs; keep the layout, characters and camera angle identical"
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out images/banner-night.png --input images/banner.png \
+  "Change the scene to night with a starry sky; keep the composition, colors of the foreground and style identical"
 
-# Three variants
+# New image that follows a reference's style
+${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out assets/tree.png --transparent --input assets/star.png \
+  "A small round tree in the same art style, shading and outline weight as the attached image"
+
+# Several variants of one prompt
 ${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out logo-ideas.png --n 3 \
-  "Minimal mascot logo of a piggy bank, flat colors, white background"
+  "Minimal logo mark of a paper plane, two flat colors, white background, no text"
 ```
 
 ## Troubleshooting
