@@ -3,7 +3,8 @@
 #
 # Usage:
 #   codex-imagegen.sh --out <path.png> [--input <img>]... [--n <count>] [--transparent]
-#                     [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <path.png>] [--] "<prompt>"
+#                     [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <path.png>]
+#                     [--preview <path.png>] [--] "<prompt>"
 #
 # --out          Destination file. With --n > 1, files are saved as <name>-1.png, <name>-2.png, ...
 # --input        Image to attach (edit target or style/composition reference). Repeatable.
@@ -15,6 +16,7 @@
 # --mask         Grayscale PNG, white = editable, black = locked.
 # --feather      Soft blend width inside the region edge (default: 1% of the shorter side).
 # --diff         Also write a difference heatmap (result vs original) to this path.
+# --preview      Also write a zoomed side-by-side of the region (original | generated | final).
 # Everything outside the region is copied back from the original, so it stays pixel-identical.
 # Needs Pillow (python3 -m pip install pillow) or uv on PATH.
 #
@@ -30,6 +32,7 @@ regions=()
 mask=""
 feather=""
 diff=""
+preview=""
 prompt=""
 
 while [[ $# -gt 0 ]]; do
@@ -42,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --mask) mask="$2"; shift 2 ;;
     --feather) feather="$2"; shift 2 ;;
     --diff) diff="$2"; shift 2 ;;
+    --preview) preview="$2"; shift 2 ;;
     --) shift; prompt="$*"; break ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) prompt="$*"; break ;;
@@ -49,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$prompt" || -z "$out" ]]; then
-  echo "Usage: $0 --out <path.png> [--input <img>]... [--n <count>] [--transparent] [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <png>] \"<prompt>\"" >&2
+  echo "Usage: $0 --out <path.png> [--input <img>]... [--n <count>] [--transparent] [--region x,y,w,h]... [--mask <png>] [--feather <px>] [--diff <png>] [--preview <png>] \"<prompt>\"" >&2
   exit 2
 fi
 
@@ -149,7 +153,7 @@ ext="${out##*.}"
 # Copy one generated image to its destination; for region-locked edits,
 # composite it onto the original instead and print the verification report on stderr.
 save() {
-  local src="$1" dest="$2" diff_out="$3"
+  local src="$1" dest="$2" diff_out="$3" preview_out="$4"
   if [[ "$lock" -eq 0 ]]; then
     cp "$src" "$dest"
     return
@@ -160,20 +164,23 @@ save() {
   [[ -n "$mask" ]] && args+=(--mask "$mask")
   [[ -n "$feather" ]] && args+=(--feather "$feather")
   [[ -n "$diff_out" ]] && args+=(--diff "$diff_out")
+  [[ -n "$preview_out" ]] && args+=(--preview "$preview_out")
   echo "raw generated image: $src" >&2
   "${py[@]}" "$script_dir/edit_tools.py" "${args[@]}" >&2
 }
 
 if [[ ${#results[@]} -eq 1 ]]; then
-  save "${results[0]}" "$out" "$diff"
+  save "${results[0]}" "$out" "$diff" "$preview"
   echo "$out"
 else
   i=1
   for f in "${results[@]}"; do
     dest="$base-$i.$ext"
     diff_out=""
+    preview_out=""
     [[ -n "$diff" ]] && diff_out="${diff%.*}-$i.png"
-    save "$f" "$dest" "$diff_out"
+    [[ -n "$preview" ]] && preview_out="${preview%.*}-$i.png"
+    save "$f" "$dest" "$diff_out" "$preview_out"
     echo "$dest"
     i=$((i + 1))
   done

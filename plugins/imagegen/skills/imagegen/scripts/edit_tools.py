@@ -6,8 +6,9 @@ region to the original and report how much actually changed.
 
 Usage:
   edit_tools.py composite --original O --edited E --out OUT (--region R... | --mask M)
-                          [--feather PX] [--diff DIFF.png]
-  edit_tools.py compare   --original O --edited E [--region R... | --mask M] [--diff DIFF.png]
+                          [--feather PX] [--diff DIFF.png] [--preview PREVIEW.png]
+  edit_tools.py compare   --original O --edited E [--region R... | --mask M]
+                          [--diff DIFF.png] [--preview PREVIEW.png]
 
 --region x,y,w,h   Editable rectangle in original pixels, or as fractions (0-1) of
                    width/height when all four values are <= 1. Repeatable.
@@ -17,6 +18,9 @@ Usage:
                    shorter side, at least 4). Pixels outside stay exactly original.
 --diff DIFF.png    Write an amplified difference heatmap (edited vs original) with
                    the editable region outlined in red.
+--preview P.png    Write a zoomed side-by-side of the region plus a margin
+                   (original | generated | final for composite, original | edited for
+                   compare) on a checkerboard, for visual inspection with an image viewer.
 """
 
 import argparse
@@ -62,11 +66,13 @@ def build_mask(args, size):
 
 
 def soften(mask, feather):
-    """Feather inward only: outside the hard mask stays exactly 0."""
+    """Feather inward only, over roughly `feather` px: outside the hard mask stays exactly 0."""
     if feather <= 0:
         return mask
-    eroded = mask.filter(ImageFilter.GaussianBlur(feather)).point(lambda v: 255 if v >= 250 else 0)
-    soft = eroded.filter(ImageFilter.GaussianBlur(feather / 2))
+    eroded = mask
+    for _ in range(max(1, feather // 2)):
+        eroded = eroded.filter(ImageFilter.MinFilter(3))
+    soft = eroded.filter(ImageFilter.GaussianBlur(feather / 4))
     return ImageChops.multiply(soft, mask)
 
 
@@ -127,6 +133,46 @@ def write_diff(o, e, mask, path):
     print(f"diff heatmap: {path}")
 
 
+def checkerboard(size, cell=16):
+    board = Image.new("RGBA", size, (255, 255, 255, 255))
+    draw = ImageDraw.Draw(board)
+    for y in range(0, size[1], cell):
+        for x in range((y // cell) % 2 * cell, size[0], cell * 2):
+            draw.rectangle([x, y, x + cell - 1, y + cell - 1], fill=(205, 205, 205, 255))
+    return board
+
+
+def write_preview(panels, mask, path, max_width=1800):
+    """panels: list of (label, RGBA image, outline_region)."""
+    w, h = panels[0][1].size
+    box = mask.getbbox() if mask is not None else None
+    if box is None:
+        box = (0, 0, w, h)
+    margin = max(24, round(0.15 * max(box[2] - box[0], box[3] - box[1])))
+    crop = (max(0, box[0] - margin), max(0, box[1] - margin),
+            min(w, box[2] + margin), min(h, box[3] + margin))
+    cw, ch = crop[2] - crop[0], crop[3] - crop[1]
+    gap, label_h = 12, 28
+    scale = min(4.0, (max_width - gap * (len(panels) - 1)) / (cw * len(panels)))
+    pw, ph = max(1, round(cw * scale)), max(1, round(ch * scale))
+
+    sheet = Image.new("RGB", (pw * len(panels) + gap * (len(panels) - 1), ph + label_h), (40, 40, 40))
+    draw = ImageDraw.Draw(sheet)
+    for i, (label, img, outline) in enumerate(panels):
+        tile = img.crop(crop).resize((pw, ph), Image.LANCZOS)
+        bg = checkerboard((pw, ph))
+        bg.alpha_composite(tile)
+        if outline and mask is not None:
+            edge = mask.crop(crop).resize((pw, ph), Image.NEAREST).filter(ImageFilter.FIND_EDGES)
+            edge = edge.filter(ImageFilter.MaxFilter(3))
+            bg.paste((255, 0, 0, 255), (0, 0), edge)
+        x = i * (pw + gap)
+        sheet.paste(bg.convert("RGB"), (x, label_h))
+        draw.text((x + 6, 8), label, fill=(255, 255, 255))
+    sheet.save(path)
+    print(f"preview: {path} (crop {crop[0]},{crop[1]} {cw}x{ch}, scale {scale:.2f}x)")
+
+
 def cmd_compare(args):
     _, o, e, edited_size, resized = load_pair(args)
     if resized:
@@ -136,6 +182,8 @@ def cmd_compare(args):
     report(o, e, mask, "edited vs original")
     if args.diff:
         write_diff(o, e, mask, args.diff)
+    if args.preview:
+        write_preview([("original", o, True), ("edited", e, False)], mask, args.preview)
 
 
 def cmd_composite(args):
@@ -165,6 +213,9 @@ def cmd_composite(args):
         print("warning: almost nothing changed inside the editable region; the edit may not have happened there")
     if args.diff:
         write_diff(o, saved, mask, args.diff)
+    if args.preview:
+        write_preview([("original", o, True), ("generated (raw)", e, True),
+                       ("final (check the seam)", saved, False)], mask, args.preview)
     print(f"saved: {args.out}")
 
 
@@ -178,6 +229,7 @@ def main():
         s.add_argument("--region", action="append")
         s.add_argument("--mask")
         s.add_argument("--diff")
+        s.add_argument("--preview")
         if name == "composite":
             s.add_argument("--out", required=True)
             s.add_argument("--feather", type=int)

@@ -24,6 +24,7 @@ Options:
 - `--mask <png>`: same, with a grayscale mask instead (white = editable, black = locked).
 - `--feather <px>`: soft blend width inside the region edge (default 1% of the shorter side).
 - `--diff <png>`: also save a difference heatmap of the result vs the original, with the region outlined in red.
+- `--preview <png>`: also save a zoomed side-by-side of the region plus a margin (original | generated | final) on a checkerboard, for visual checks.
 
 The script prints the saved path(s) on stdout. Each image takes roughly 30–60 seconds, so run it with a Bash timeout of at least 300000 ms (more for several variants), or in the background for big batches.
 
@@ -42,17 +43,22 @@ Codex image_gen never edits in place: it re-renders the whole image, so even wit
 
 1. Get the original's size (`sips -g pixelWidth -g pixelHeight img.png` on macOS, or `file img.png`) and look at it with Read.
 2. Pick the editable rectangle in the original's pixels. Be generous: include room for the new content (a hat needs space above the head) plus a margin, since the model may shift things slightly.
-3. Run the edit with `--input <original> --region x,y,w,h` (or `--mask`). The script composites the generated region onto the original and prints a report on stderr:
+3. Run the edit with `--input <original> --region x,y,w,h` (or `--mask`) and `--preview <tmp>/preview.png` (a temp or scratch path, not the asset folder). The script composites the generated region onto the original and prints a report on stderr:
    - `inside editable region: N% changed`: near 0% means the edit didn't land in the region; move or enlarge it.
    - `outside editable region: N% changed`: how much the raw generation drifted (informational; it is discarded).
    - `final: outside region identical to original: yes`: the guarantee. Anything else is an error to report.
-4. Open the result with Read and check the seam around the region. If the new content is cut off at the region edge or misaligned with the original, enlarge the region and run again. Pass `--diff` for a heatmap when you need to see exactly what changed.
+4. Always verify visually yourself; the numbers only prove the outside is untouched, not that the edit looks right. Open the preview with Read and check:
+   - the requested change is there and matches the request;
+   - the final panel has no visible seam where content crosses the red outline (broken outlines, color steps, misaligned shapes);
+   - nothing from the original shows through near the region edge (old colors, halos, a half-faded old object);
+   - new content isn't cut off at the region edge.
+   Then open the full result with Read for overall look. For a suspicious spot, crop and enlarge it (for example 4x with nearest-neighbor) and Read that. If any check fails, enlarge or move the region (or lower `--feather` for leftover halos) and run again. Pass `--diff` for a heatmap when you need to see exactly what changed. Report the checks to the user, not just the numbers.
 
 To verify any edit after the fact (for example one made without a region), compare it with the original:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/edit_tools.py compare --original a.png --edited b.png \
-  [--region x,y,w,h] [--diff diff.png]
+  [--region x,y,w,h] [--diff diff.png] [--preview preview.png]
 ```
 
 Use `uv run --no-project --with pillow python` in place of `python3` when Pillow isn't installed. A pixel-by-pixel equality check of a raw image_gen edit will always fail; that is expected, and the reason to use regions.
@@ -84,7 +90,7 @@ ${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out images/banner-night.png --in
 
 # Change only one part; everything outside the region stays pixel-identical
 ${CLAUDE_SKILL_DIR}/scripts/codex-imagegen.sh --out images/portrait-glasses.png --input images/portrait.png \
-  --region 300,180,420,200 --diff images/portrait-glasses.diff.png \
+  --region 300,180,420,200 --preview /tmp/portrait-glasses.preview.png \
   "Add round black glasses to the person; keep the face, pose, framing and image size exactly the same"
 
 # New image that follows a reference's style
