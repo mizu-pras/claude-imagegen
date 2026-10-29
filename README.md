@@ -12,14 +12,14 @@ Claude Code plugin that generates and edits images by calling [Codex CLI](https:
 In Claude Code:
 
 ```
-/plugin marketplace add <github-user>/claude-imagegen
+/plugin marketplace add mizu-pras/claude-imagegen
 /plugin install imagegen@codex-imagegen
 ```
 
 Or from a terminal:
 
 ```bash
-claude plugin marketplace add <github-user>/claude-imagegen
+claude plugin marketplace add mizu-pras/claude-imagegen
 claude plugin install imagegen@codex-imagegen
 ```
 
